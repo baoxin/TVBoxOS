@@ -1,0 +1,64 @@
+name: Build Signed Search Fix
+
+on:
+  push:
+    branches:
+      - 'use/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 11
+
+      - name: Remove hardcoded buildPython path
+        run: sed -i '\|buildPython("D:/Programs/Python/Python38/python.exe")|d' pyramid/build.gradle
+
+      - name: Create empty local.properties
+        run: echo "" > local.properties
+
+      - name: Release Apk Sign
+        run: |
+          signingConfigs='ICAgIHNpZ25pbmdDb25maWdzIHtcCiAgICAgICAgaWYgKHByb2plY3QuaGFzUHJvcGVydHkoIlJFTEVBU0VfU1RPUkVfRklMRSIpKSB7XAogICAgICAgICAgICBteUNvbmZpZyB7XAogICAgICAgICAgICAgICAgc3RvcmVGaWxlIGZpbGUoUkVMRUFTRV9TVE9SRV9GSUxFKVwKICAgICAgICAgICAgICAgIHN0b3JlUGFzc3dvcmQgUkVMRUFTRV9TVE9SRV9QQVNTV09SRFwKICAgICAgICAgICAgICAgIGtleUFsaWFzIFJFTEVBU0VfS0VZX0FMSUFTXAogICAgICAgICAgICAgICAga2V5UGFzc3dvcmQgUkVMRUFTRV9LRVlfUEFTU1dPUkRcCiAgICAgICAgICAgICAgICB2MVNpZ25pbmdFbmFibGVkIHRydWVcCiAgICAgICAgICAgICAgICB2MlNpZ25pbmdFbmFibGVkIHRydWVcCiAgICAgICAgICAgICAgICBlbmFibGVWM1NpZ25pbmcgPSB0cnVlXAogICAgICAgICAgICAgICAgZW5hYmxlVjRTaWduaW5nID0gdHJ1ZVwKICAgICAgICAgICAgfVwKICAgICAgICB9XAogICAgfVwKXA=='
+          signingConfig='ICAgICAgICAgICAgaWYgKHByb2plY3QuaGFzUHJvcGVydHkoIlJFTEVBU0VfU1RPUkVfRklMRSIpKSB7XAogICAgICAgICAgICAgICAgc2lnbmluZ0NvbmZpZyBzaWduaW5nQ29uZmlncy5teUNvbmZpZ1wKICAgICAgICAgICAgfVwK'
+          signingConfigs="$(echo "$signingConfigs" |base64 -d )"
+          signingConfig="$(echo "$signingConfig" |base64 -d )"
+          sed -i -e "/defaultConfig {/i\\$signingConfigs " -e "/debug {/a\\$signingConfig " -e "/release {/a\\$signingConfig " app/build.gradle
+          cp -f ${{ github.workspace }}/.github/workflows/TVBoxOSC.jks app/TVBoxOSC.jks
+          sed -i '$a\RELEASE_STORE_FILE=./TVBoxOSC.jks'     ./gradle.properties
+          sed -i '$a\RELEASE_KEY_ALIAS=TVBoxOSC'            ./gradle.properties
+          sed -i '$a\RELEASE_STORE_PASSWORD=TVBoxOSC'       ./gradle.properties
+          sed -i '$a\RELEASE_KEY_PASSWORD=TVBoxOSC'         ./gradle.properties
+
+      - name: Build java64 release
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleJava64Release --build-cache --parallel --warning-mode all
+
+      - name: Verify signature
+        run: |
+          APK=$(ls app/build/outputs/apk/java64/release/*.apk | head -1)
+          echo "APK: $APK"
+          APKSIGNER=$(ls $ANDROID_HOME/build-tools/*/apksigner | sort -V | tail -1)
+          $APKSIGNER verify --print-certs "$APK" | head -4
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: search-fix
+          name: 搜索修复版 java64
+          body: |
+            基于 fix/search-timeout 分支(PR q215613905/TVBoxOS#157)构建,官方 TVBoxOSC.jks 签名,可直接覆盖安装日更版,配置不丢。
+          files: app/build/outputs/apk/java64/release/*.apk
+          make_latest: true
