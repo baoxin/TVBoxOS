@@ -872,10 +872,11 @@ public class SearchActivity extends BaseActivity {
             return;
         }
         String sourceKey = absXml == null ? "" : absXml.sourceKey;
-        if (!markSearchFinished(sourceKey, absXml.searchToken)) {
-            return;
+        // 源已因超时被标记完成时不再重复记账,但迟到返回的结果仍然上屏
+        boolean accounted = markSearchFinished(sourceKey, absXml.searchToken);
+        if (accounted) {
+            releaseSearchSlotAndStartNext(sourceKey, absXml.searchToken);
         }
-        releaseSearchSlotAndStartNext(sourceKey, absXml.searchToken);
         if (absXml != null && absXml.movie != null && absXml.movie.videoList != null && absXml.movie.videoList.size() > 0) {
             List<Movie.Video> exactData = new ArrayList<>();
             List<Movie.Video> highData = new ArrayList<>();
@@ -902,7 +903,9 @@ public class SearchActivity extends BaseActivity {
             addSearchResults(new ArrayList<>(highMatchVods));
         }
 
-        finishSearchIfDone();
+        if (accounted) {
+            finishSearchIfDone();
+        }
     }
 
     private void putDetailFallbackCandidates(Bundle bundle, Movie.Video selectedVideo) {
@@ -959,7 +962,15 @@ public class SearchActivity extends BaseActivity {
                     });
                 }
             }
-        }, SEARCH_SITE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        }, searchTimeoutSeconds(sourceKey), TimeUnit.SECONDS);
+    }
+
+    // 站点配置了 timeout 时优先使用(只放宽,不低于全局兜底值)
+    private int searchTimeoutSeconds(String sourceKey) {
+        SourceBean bean = ApiConfig.get().getSource(sourceKey);
+        int timeout = bean == null ? 0 : bean.getTimeout();
+        if (timeout <= 0) return SEARCH_SITE_TIMEOUT_SECONDS;
+        return Math.max(SEARCH_SITE_TIMEOUT_SECONDS, Math.min(120, timeout));
     }
 
     private boolean submitSearchTask(SearchTask task) {
@@ -1142,7 +1153,13 @@ public class SearchActivity extends BaseActivity {
         if (allRunCount.get() > 0) return;
         searchPaused = false;
         if (searchAdapter.getData().size() <= 0) {
-            showEmpty();
+            if (highMatchVods.isEmpty()) {
+                showEmpty();
+            } else {
+                // 全程没有精确同名命中时,完成瞬间把已收集的高匹配结果放出来,避免误报无数据
+                showHighMatchResults = true;
+                addSearchResults(new ArrayList<>(highMatchVods));
+            }
         }
         cancel();
         if (searchTimeoutExecutor != null) {

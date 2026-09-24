@@ -729,10 +729,11 @@ public class FastSearchActivity extends BaseActivity {
             return;
         }
         String sourceKey = absXml == null ? "" : absXml.sourceKey;
-        if (!markSearchFinished(sourceKey, absXml.searchToken)) {
-            return;
+        // 源已因超时被标记完成时不再重复记账,但迟到返回的结果仍然上屏
+        boolean accounted = markSearchFinished(sourceKey, absXml.searchToken);
+        if (accounted) {
+            releaseSearchSlotAndStartNext(sourceKey, absXml.searchToken);
         }
-        releaseSearchSlotAndStartNext(sourceKey, absXml.searchToken);
         String lastSourceKey = "";
         List<Movie.Video> exactData = new ArrayList<>();
         List<Movie.Video> highData = new ArrayList<>();
@@ -767,7 +768,9 @@ public class FastSearchActivity extends BaseActivity {
             addMainSearchResults(new ArrayList<>(highMatchVods));
         }
 
-        finishSearchIfDone();
+        if (accounted) {
+            finishSearchIfDone();
+        }
     }
 
     private void putDetailFallbackCandidates(Bundle bundle, Movie.Video selectedVideo) {
@@ -853,7 +856,15 @@ public class FastSearchActivity extends BaseActivity {
                     });
                 }
             }
-        }, SEARCH_SITE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        }, searchTimeoutSeconds(sourceKey), TimeUnit.SECONDS);
+    }
+
+    // 站点配置了 timeout 时优先使用(只放宽,不低于全局兜底值)
+    private int searchTimeoutSeconds(String sourceKey) {
+        SourceBean bean = ApiConfig.get().getSource(sourceKey);
+        int timeout = bean == null ? 0 : bean.getTimeout();
+        if (timeout <= 0) return SEARCH_SITE_TIMEOUT_SECONDS;
+        return Math.max(SEARCH_SITE_TIMEOUT_SECONDS, Math.min(120, timeout));
     }
 
     private boolean submitSearchTask(SearchTask task) {
