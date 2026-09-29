@@ -129,6 +129,11 @@ public class VodController extends BaseController {
                         boolean isPortrait = getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT;
                         backBtn.setVisibility(ScreenUtils.isTv(context) || isPortrait ? INVISIBLE : VISIBLE);
                         showLockView();
+                        // 显示即启动自动隐藏计时（takagen99 行为：10 秒无操作收起控制层）
+                        if (myHandle != null) {
+                            myHandle.removeCallbacks(myRunnable);
+                            myHandle.postDelayed(myRunnable, myHandleSeconds);
+                        }
                         break;
                     }
                     case 1003: { // 隐藏底部菜单
