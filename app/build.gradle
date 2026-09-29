@@ -1,5 +1,10 @@
 apply plugin: 'com.android.application'
 
+// Room 2.3.0 依赖的 sqlite-jdbc 3.25 无 macOS aarch64 原生库，强制新版以支持 Apple Silicon 本机构建
+configurations.all {
+    resolutionStrategy.force 'org.xerial:sqlite-jdbc:3.41.2.2'
+}
+
 android {
     compileSdkVersion 33
 
