@@ -51,6 +51,9 @@
     <color name="dialog_text_primary">#FFFFFFFF</color>
     <color name="dialog_text_hint">#80FFFFFF</color>
 
-
+    <!-- New UI (top tabs & sections) -->
+    <color name="newui_accent">#2E7BF6</color>
+    <color name="newui_nav_focus">#E62E7BF6</color>
+    <color name="newui_text_secondary">#99FFFFFF</color>
 
 </resources>
