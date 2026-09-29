@@ -59,6 +59,7 @@
     <color name="color_FF000000">#FF000000</color>
     <color name="color_FFFFFF_20">#20FFFFFF</color>
     <color name="color_FFFFFF_40">#40FFFFFF</color>
+    <color name="color_FFFFFF_80">#80FFFFFF</color>
     <color name="color_3D3D3D_50">#503D3D3D</color>
     <color name="color_662E7BF6">#662E7BF6</color>
     <color name="color_B32E7BF6">#B32E7BF6</color>
