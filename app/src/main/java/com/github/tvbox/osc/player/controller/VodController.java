@@ -22,6 +22,7 @@ import android.view.ViewConfiguration;
 import android.webkit.WebView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -118,6 +119,7 @@ public class VodController extends BaseController {
                         mBottomRoot.setVisibility(VISIBLE);
                         mTopRoot1.setVisibility(VISIBLE);
                         mTopRoot2.setVisibility(VISIBLE);
+                        if (mTopHideBar != null) mTopHideBar.setVisibility(GONE);
                         mPlayLoadNetSpeedRightTop.setVisibility(VISIBLE);
                         if(Hawk.get(HawkConfig.SCREEN_DISPLAY,GONE)==GONE){
                             mPlayPauseTime.setVisibility(VISIBLE);
@@ -136,9 +138,14 @@ public class VodController extends BaseController {
                         if (videoPlayState == VideoView.STATE_PAUSED) {
                             showPauseRoot();
                             mPlayTitle.setVisibility(VISIBLE);
+                            if (mTopHideBar != null) mTopHideBar.setVisibility(GONE);
                         } else {
                             hidePauseRoot();
                             mPlayTitle.setVisibility(GONE);
+                            if (mTopHideBar != null) {
+                                mTitleHide.setText(mPlayTitle1.getText());
+                                mTopHideBar.setVisibility(VISIBLE);
+                            }
                         }
                         if(Hawk.get(HawkConfig.SCREEN_DISPLAY,GONE)==GONE){
                             mPlayPauseTime.setVisibility(GONE);
@@ -258,6 +265,13 @@ public class VodController extends BaseController {
     LinearLayout tv_screen_display; //增加屏显布局
     TextView mCastBtn;
     TextView net_play_speed;
+    LinearLayout mTopHideBar;// 控制层隐藏时常显的极简顶栏
+    TextView mTitleHide;
+    TextView mSysTimeTop;
+    TextView mTimeEnd;
+    ProgressBar mPauseBar;
+    ProgressBar mSeekMiniBar;
+    TextView mPlayPauseBtn;
     private boolean hasDanmu = false;
     private boolean showParse;
 
@@ -276,7 +290,9 @@ public class VodController extends BaseController {
         public void run() {
             Date date = new Date();
             @SuppressLint("SimpleDateFormat") SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm");
-            mPlayPauseTime.setText(timeFormat.format(date));
+            String nowTime = timeFormat.format(date);
+            mPlayPauseTime.setText(nowTime);
+            if (mSysTimeTop != null) mSysTimeTop.setText(nowTime);
             long mSpeed = mControlWrapper.getTcpSpeed();
             String speed = PlayerHelper.getDisplaySpeed(mSpeed,false);
             String speedBps = PlayerHelper.getDisplaySpeedBps(mSpeed,true);
@@ -287,10 +303,40 @@ public class VodController extends BaseController {
             String width = Integer.toString(mVideoSizes[0]);
             String height = Integer.toString(mVideoSizes[1]);
             mVideoSize.setText(width + " X " + height);
-
+            updateEndTime();
             mHandler.postDelayed(this, 1000);
         }
     };
+
+    /** takagen99 风格：播放/暂停按钮图标切换（drawableTop） */
+    private void setPlayPauseIcon(boolean playing) {
+        if (mPlayPauseBtn == null) return;
+        mPlayPauseBtn.setCompoundDrawablesWithIntrinsicBounds(
+                null, getContext().getDrawable(playing ? R.drawable.v_pause : R.drawable.v_play), null, null);
+    }
+
+    /** takagen99 风格：底栏显示「预计 HH:mm 完播」 */
+    private void updateEndTime() {
+        if (mTimeEnd == null) return;
+        try {
+            int duration = safeTimeMs(mControlWrapper.getDuration());
+            int position = safeTimeMs(mControlWrapper.getCurrentPosition());
+            if (duration <= 0 || position >= duration) {
+                mTimeEnd.setText("");
+                return;
+            }
+            float speed = 1.0f;
+            if (mPlayerConfig != null) {
+                speed = (float) mPlayerConfig.optDouble("sp", 1.0);
+                if (speed <= 0) speed = 1.0f;
+            }
+            long remainMs = (long) ((duration - position) / speed);
+            Date end = new Date(System.currentTimeMillis() + remainMs);
+            mTimeEnd.setText("预计 " + new SimpleDateFormat("HH:mm", Locale.getDefault()).format(end) + " 完播");
+        } catch (Exception e) {
+            mTimeEnd.setText("");
+        }
+    }
     
     private void showLockView() {
         if (previewMode || getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT) {
@@ -353,6 +399,21 @@ public class VodController extends BaseController {
         mPlayerTimeSkipBtn = findViewById(R.id.play_time_end);
         mPlayerTimeResetBtn = findViewById(R.id.play_time_reset);
         mPlayPauseTime = findViewById(R.id.tv_sys_time);
+        mTopHideBar = findViewById(R.id.top_container_hide);
+        mTitleHide = findViewById(R.id.tv_title_top_hide);
+        mSysTimeTop = findViewById(R.id.tv_sys_time_top);
+        mTimeEnd = findViewById(R.id.tv_time_end);
+        mPauseBar = findViewById(R.id.video_pausebar);
+        mSeekMiniBar = findViewById(R.id.video_progressbar);
+        mPlayPauseBtn = findViewById(R.id.play_pause);
+        if (mPlayPauseBtn != null) {
+            mPlayPauseBtn.setOnClickListener(new OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    togglePlay();
+                }
+            });
+        }
         mPlayLoadNetSpeed = findViewById(R.id.tv_play_load_net_speed);
         mVideoSize = findViewById(R.id.tv_videosize);
         mSubtitleView = findViewById(R.id.subtitle_view);
@@ -1415,6 +1476,9 @@ public class VodController extends BaseController {
             mSeekBar.setEnabled(true);
             int pos = (int) (position * 1.0 / duration * mSeekBar.getMax());
             mSeekBar.setProgress(pos);
+            int miniPercent = (int) (position * 100L / duration);
+            if (mPauseBar != null) mPauseBar.setProgress(miniPercent);
+            if (mSeekMiniBar != null) mSeekMiniBar.setProgress(miniPercent);
         } else {
             mSeekBar.setEnabled(false);
         }
@@ -1498,17 +1562,20 @@ public class VodController extends BaseController {
     protected void onPlayStateChanged(int playState) {
         super.onPlayStateChanged(playState);
         videoPlayState = playState;
-        switch (playState) {
-            case VideoView.STATE_IDLE:
-                break;
-            case VideoView.STATE_PLAYING:
-                initLandscapePortraitBtnInfo();
-                startProgress();
-                break;
-            case VideoView.STATE_PAUSED:
+            switch (playState) {
+                case VideoView.STATE_IDLE:
+                    break;
+                case VideoView.STATE_PLAYING:
+                    initLandscapePortraitBtnInfo();
+                    startProgress();
+                    setPlayPauseIcon(true);
+                    break;
+                case VideoView.STATE_PAUSED:
+                    setPlayPauseIcon(false);
                 mTopRoot1.setVisibility(GONE);
 //                mTopRoot2.setVisibility(GONE);
                 mPlayLoadNetSpeedRightTop.setVisibility(GONE);
+                if (mTopHideBar != null) mTopHideBar.setVisibility(GONE);
                 if (isBottomVisible()) {
                     hideBottom();
                 }
