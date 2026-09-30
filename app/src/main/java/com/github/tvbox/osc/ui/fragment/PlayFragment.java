@@ -275,6 +275,7 @@ public class PlayFragment extends BaseLazyFragment {
         mPlayLoading = findViewById(R.id.play_loading);
         mPlayLoadErr = findViewById(R.id.play_load_error);
         mController = new VodController(requireContext());
+        mController.setPreviewMode(previewMode);
         View.OnTouchListener passThroughTouch = new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {

@@ -113,6 +113,15 @@ public class VodController extends BaseController {
                         break;
                     }
                     case 1002: { // 显示底部菜单
+                        if (previewMode) {
+                            // 小窗模式禁止呼出控制层
+                            mBottomRoot.setVisibility(GONE);
+                            mTopRoot1.setVisibility(GONE);
+                            mTopRoot2.setVisibility(GONE);
+                            mPlayLoadNetSpeedRightTop.setVisibility(GONE);
+                            if (mTopHideBar != null) mTopHideBar.setVisibility(GONE);
+                            break;
+                        }
                         updateDanmuSearchUiBtn();
                         hidePauseRoot();
                         mPlayTitle.setVisibility(GONE);
@@ -147,7 +156,7 @@ public class VodController extends BaseController {
                         } else {
                             hidePauseRoot();
                             mPlayTitle.setVisibility(GONE);
-                            if (mTopHideBar != null) {
+                            if (mTopHideBar != null && !previewMode) {
                                 mTitleHide.setText(mPlayTitle1.getText());
                                 mTopHideBar.setVisibility(VISIBLE);
                             }
@@ -364,6 +373,14 @@ public class VodController extends BaseController {
         mHandler.removeCallbacks(lockRunnable);
         if (mLockView != null) {
             mLockView.setVisibility(INVISIBLE);
+        }
+        if (previewMode && mBottomRoot != null) {
+            // 小窗模式：只保留播放画面，不显示任何控制层（点小窗/OK 进全屏后才可操作）
+            mBottomRoot.setVisibility(GONE);
+            mTopRoot1.setVisibility(GONE);
+            mTopRoot2.setVisibility(GONE);
+            mPlayLoadNetSpeedRightTop.setVisibility(GONE);
+            if (mTopHideBar != null) mTopHideBar.setVisibility(GONE);
         }
     }
 
@@ -1036,6 +1053,14 @@ public class VodController extends BaseController {
         }
         mScreenDisplay.setNextFocusRightId(R.id.play_next);
         mNextBtn.setNextFocusLeftId(R.id.screen_display);
+        if (previewMode) {
+            // 小窗模式：视图绑定完成后立即收起全部控制层
+            mBottomRoot.setVisibility(GONE);
+            mTopRoot1.setVisibility(GONE);
+            mTopRoot2.setVisibility(GONE);
+            mPlayLoadNetSpeedRightTop.setVisibility(GONE);
+            if (mTopHideBar != null) mTopHideBar.setVisibility(GONE);
+        }
     }
 
     private void showScaleDialog() {
